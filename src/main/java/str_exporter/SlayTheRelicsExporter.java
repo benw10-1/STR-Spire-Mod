@@ -1,6 +1,7 @@
 package str_exporter;
 
 import basemod.*;
+import basemod.devcommands.ConsoleCommand;
 import basemod.interfaces.*;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.evacipated.cardcrawl.modthespire.Loader;
@@ -22,6 +23,7 @@ import str_exporter.client.EBSClient;
 import str_exporter.client.Message;
 import str_exporter.config.AuthManager;
 import str_exporter.config.Config;
+import str_exporter.devcommands.setspireblightdeck.SetSpireblightDeck;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -163,6 +165,8 @@ public class SlayTheRelicsExporter implements RelicGetSubscriber,
                 "LordAddy, vmService",
                 "This mod exports data to Slay the Relics Twitch extension. See the extension config on Twitch for setup instructions.",
                 settingsPanel);
+
+        ConsoleCommand.addCommand("setspireblightdeck", SetSpireblightDeck.class);
     }
 
     @Override
