@@ -45,9 +45,9 @@ public class SlayTheRelicsExporter implements RelicGetSubscriber,
     public static SlayTheRelicsExporter instance = null;
     private static String version = "";
     private static long lastOkayBroadcast = 0;
-    private final Config config;
-    private final EBSClient ebsClient;
-    private final AuthManager authManager;
+    private static Config config;
+    private static EBSClient ebsClient;
+    private static AuthManager authManager;
     private long lastTipsCheck = System.currentTimeMillis();
     private long lastDeckCheck = System.currentTimeMillis();
     private boolean checkTipsNextUpdate = false;
