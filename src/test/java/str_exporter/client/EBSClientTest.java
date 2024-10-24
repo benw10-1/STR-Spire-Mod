@@ -8,7 +8,7 @@ import str_exporter.testutil.TestUtil;
 public class EBSClientTest extends TestUtil {
   @Test
   public void test() throws Exception {
-    loadDeckJSONFile("basic.json");
+    loadDeckJSONFile("run-1728675795.json");
 
     spireConfig.setString("api_url", "http://localhost:8080");
 
