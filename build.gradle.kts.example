@@ -2,6 +2,15 @@ plugins {
     java
 }
 
+sourceSets {
+    main {
+        java.srcDirs("src/main/java")
+    }
+    test {
+        java.srcDirs("src/test/java")
+    }
+}
+
 /*
 Setup environment variables
 * stsInstallLocation should point to the Steam install directory
@@ -29,6 +38,16 @@ repositories {
 
 dependencies {
     compileOnly(files(modTheSpireLocation, baseModLocation, stsJar))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0") // Update the version if necessary
+    testImplementation(files(modTheSpireLocation, baseModLocation, stsJar))
+    // LibGDX core
+    testImplementation("com.badlogicgames.gdx:gdx:1.12.0")
+    // LibGDX headless backend
+    testImplementation("com.badlogicgames.gdx:gdx-backend-headless:1.12.0")
+    // LibGDX natives (for headless backend)
+    testImplementation("com.badlogicgames.gdx:gdx-platform:1.12.0:natives-desktop")
+    
+    testImplementation("org.mockito:mockito-core:5.5.0")
 }
 
 
@@ -73,4 +92,26 @@ tasks.register<Copy>("buildAndCopyJAR") {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    testLogging {
+      events("passed", "skipped", "failed")
+      exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+      showExceptions = true
+      showCauses = true
+      showStackTraces = true
+      showStandardStreams = true
+    }
+}
+
+tasks.register("checkDependencyFiles") {
+    doLast {
+        val files = listOf(modTheSpireLocation, baseModLocation, stsJar)
+        files.forEach { path ->
+            val file = File(path)
+            if (file.exists()) {
+                println("Found: $path")
+            } else {
+                println("Not found: $path")
+            }
+        }
+    }
 }
