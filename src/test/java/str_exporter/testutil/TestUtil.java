@@ -272,14 +272,29 @@ public class TestUtil {
     AbstractDungeon.player.masterDeck.clear();
 
     cardMap.forEach((cardName, count) -> {
+      int upgradeCount = 0;
+
+      String[] cardNameUpgradeSplit = cardName.split("\\+");
+      if (cardNameUpgradeSplit.length == 2) {
+        upgradeCount = 1;
+        if (cardNameUpgradeSplit[1].length() > 0) {
+          upgradeCount = Integer.parseInt(cardNameUpgradeSplit[1]);
+        }
+
+        cardName = cardNameUpgradeSplit[0];
+      }
+
       AbstractCard c = CardLibrary.getCard(cardName);
       AbstractCard cCpy3 = null;
       if (c == null) {
+        cardName = cardName.toLowerCase();
         // for some cases the ID wont match the name of the card (like Recursion, which
         // has the ID "Redo", or "Strike" with ID
         // "Strike_R" for Ironclad), so check all cards by name
         for (AbstractCard card : CardLibrary.getAllCards()) {
-          String name = card.name.replaceFirst("_(R|G|B|P)", ""); // because of this 
+          // basic strikes and defends have a color suffix, so remove it for the check
+          String name = card.name.replaceFirst("_(R|G|B|P)", "");
+          name = name.toLowerCase();
           if (!name.equals(cardName)) {
             continue;
           }
@@ -302,12 +317,9 @@ public class TestUtil {
         cCpy3 = c.makeCopy();
       }
 
-      String[] cardNameSplit = cardName.split("\\+");
-      if (cardNameSplit.length == 2) {
-        int upgradeCount = 1;
-        if (cardNameSplit[1].length() > 0) {
-          upgradeCount = Integer.parseInt(cardNameSplit[1]);
-        }
+      
+      if (cardNameUpgradeSplit.length == 2) {
+        
 
         for (int i = 0; i < upgradeCount; i++) {
           cCpy3.upgrade();
