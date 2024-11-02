@@ -2,6 +2,9 @@ package str_exporter.testutil;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
@@ -22,7 +25,11 @@ import com.badlogic.gdx.graphics.GL20;
 import com.evacipated.cardcrawl.modthespire.Loader;
 import com.evacipated.cardcrawl.modthespire.ModInfo;
 import com.evacipated.cardcrawl.modthespire.lib.SpireConfig;
+import com.google.gson.Gson;
+import com.megacrit.cardcrawl.audio.MusicMaster;
+import com.megacrit.cardcrawl.audio.SoundMaster;
 import com.megacrit.cardcrawl.cards.AbstractCard;
+import com.megacrit.cardcrawl.cards.blue.EchoForm;
 import com.megacrit.cardcrawl.characters.Defect;
 import com.megacrit.cardcrawl.characters.Ironclad;
 import com.megacrit.cardcrawl.characters.TheSilent;
@@ -32,21 +39,30 @@ import com.megacrit.cardcrawl.core.AbstractCreature;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import com.megacrit.cardcrawl.helpers.CardHelper;
 import com.megacrit.cardcrawl.helpers.CardLibrary;
 import com.megacrit.cardcrawl.helpers.FontHelper;
 import com.megacrit.cardcrawl.helpers.GameDictionary;
 import com.megacrit.cardcrawl.helpers.ImageMaster;
 import com.megacrit.cardcrawl.helpers.Prefs;
 import com.megacrit.cardcrawl.helpers.RelicLibrary;
+import com.megacrit.cardcrawl.helpers.SeedHelper;
 import com.megacrit.cardcrawl.helpers.TipTracker;
 import com.megacrit.cardcrawl.integrations.PublisherIntegration;
 import com.megacrit.cardcrawl.integrations.DistributorFactory.Distributor;
 import com.megacrit.cardcrawl.localization.LocalizedStrings;
 import com.megacrit.cardcrawl.powers.AbstractPower;
+import com.megacrit.cardcrawl.random.Random;
 import com.megacrit.cardcrawl.screens.DisplayOption;
+import com.megacrit.cardcrawl.ui.panels.TopPanel;
 import com.megacrit.cardcrawl.unlock.UnlockTracker;
 
 import basemod.BaseMod;
+import basemod.helpers.dynamicvariables.BlockVariable;
+import basemod.helpers.dynamicvariables.DamageVariable;
+import basemod.helpers.dynamicvariables.MagicNumberVariable;
+import javassist.ClassPool;
+import javassist.LoaderClassPath;
 import str_exporter.SlayTheRelicsExporter;
 import str_exporter.client.EBSClient;
 import str_exporter.config.AuthManager;
@@ -125,23 +141,11 @@ public class TestUtil {
 
     Settings.soundPref = new Prefs();
 
-    Loader.MODINFOS = new ModInfo[0];
+    Settings.scale = 1.0f;
+    Settings.language = Settings.GameLanguage.ENG;
+    Settings.setLanguage(Settings.language, true);
 
-    field = BaseMod.class.getDeclaredField("keywordProperNames");
-    field.setAccessible(true);
-
-    // Set the field to the mock object
-    field.set(null, new HashMap<>());
-
-    field = BaseMod.class.getDeclaredField("keywordUniqueNames");
-    field.setAccessible(true);
-
-    field.set(null, new HashMap<>());
-
-    field = BaseMod.class.getDeclaredField("keywordUniquePrefixes");
-    field.setAccessible(true);
-
-    field.set(null, new HashMap<>());
+    CardCrawlGame.languagePack = new LocalizedStrings();
 
     strConfig = new str_exporter.config.Config();
     strConfig.setUser("test");
@@ -171,6 +175,37 @@ public class TestUtil {
     field.setAccessible(true);
 
     field.set(null, new AuthManager(ebsClient, strConfig));
+
+    CardCrawlGame.music = new MusicMaster();
+    CardCrawlGame.sound = new SoundMaster();
+  }
+
+  private static void setupLoaderClassPath() throws Exception {
+    Loader.MODINFOS = new ModInfo[0];
+    URL stsLoc = EchoForm.class.getProtectionDomain().getCodeSource().getLocation();
+    Loader.STS_JAR = stsLoc.getPath(); // refed by misc. BaseMod calls to see what mod objects came from
+
+    ClassPool pool = new ClassPool();
+    URLClassLoader loader = new URLClassLoader(new URL[] { stsLoc });
+    pool.appendClassPath(new LoaderClassPath(loader));
+  
+    Field field = Loader.class.getDeclaredField("POOL");
+    field.setAccessible(true);
+
+    field.set(null, pool);
+  }
+
+  private static void setupBaseMod() throws Exception {
+    // populate loader pool with sts classes without needing the patch jar which is coupled in the loader entrypoint
+    setupLoaderClassPath();
+
+    BaseMod.initialize();
+
+    BaseMod.addKeyword(new String[] { "[E]" }, GameDictionary.TEXT[0]); // from annoyingly tucked basemod hook - energy keyword
+
+    BaseMod.addDynamicVariable(new DamageVariable());
+    BaseMod.addDynamicVariable(new BlockVariable());
+    BaseMod.addDynamicVariable(new MagicNumberVariable());
   }
 
   @BeforeAll
@@ -180,14 +215,10 @@ public class TestUtil {
 
     game = new CardCrawlGame("");
 
-    Settings.language = Settings.GameLanguage.ENG;
-    Settings.scale = 1.0f;
-
-    CardCrawlGame.languagePack = new LocalizedStrings();
-
     AbstractCreature.initialize();
     AbstractCard.initialize();
     GameDictionary.initialize();
+
     ImageMaster.initialize();
     AbstractPower.initialize();
     FontHelper.initialize();
@@ -203,6 +234,8 @@ public class TestUtil {
     // UnlockTracker.retroactiveUnlock();
     // CInputHelper.loadSettings();
 
+    AbstractDungeon.topPanel = Mockito.mock(TopPanel.class);
+    setupBaseMod();
   }
 
   @AfterAll
@@ -221,10 +254,10 @@ public class TestUtil {
 
   @BeforeEach
   public void setUp() throws Exception {
-    setupGame(PlayerClass.IRONCLAD);
+    setupRun(PlayerClass.IRONCLAD);
   }
 
-  public void setupGame(PlayerClass cPlayerClass) throws Exception {
+  public void setupRun(PlayerClass cPlayerClass) throws Exception {
     switch (cPlayerClass) {
       case IRONCLAD:
         Constructor<Ironclad> ironcladConstructor = Ironclad.class.getDeclaredConstructor(String.class);
@@ -254,11 +287,20 @@ public class TestUtil {
         throw new Exception("Invalid player class");
     }
 
+    setRandomSeed();
     // init calls at start of game minus the rendering
-    AbstractDungeon.player.initializeStarterDeck();
+    AbstractDungeon.generateSeeds();
 
-    game.getDungeon("EXORDIUM", AbstractDungeon.player);
+    CardCrawlGame.dungeon = game.getDungeon("Exordium", AbstractDungeon.player);
     game.mode = CardCrawlGame.GameMode.GAMEPLAY;
+  }
+
+  private void setRandomSeed() throws Exception {
+    long sourceTime = System.nanoTime();
+    Random rng = new Random(Long.valueOf(sourceTime));
+    Settings.seedSourceTimestamp = sourceTime;
+    Settings.seed = Long.valueOf(SeedHelper.generateUnoffensiveSeed(rng));
+    Settings.seedSet = false;
   }
 
   public void loadDeckJSONFile(String filename) throws Exception {
@@ -269,9 +311,25 @@ public class TestUtil {
     @SuppressWarnings("unchecked")
     Map<String, Double> cardMap = strConfig.gson.fromJson(jsonStr, Map.class);
 
+    Character playerColorChar = Character
+        .toLowerCase(AbstractDungeon.player.getCardColor().name().toLowerCase().charAt(0));
+
+    // for some cases the ID wont match the name of the card (like Recursion, which
+    // has the ID "Redo", or "Strike" with ID
+    // "Strike_R" for Ironclad), so check all cards by name
+    Map<String, AbstractCard> cardMapByName = new HashMap<>();
+    for (AbstractCard card : CardLibrary.getAllCards()) {
+      String name = card.name.toLowerCase();
+      if (name == "strike" || name == "defend") {
+        name = name + "_" + playerColorChar;
+      }
+      cardMapByName.put(name, card);
+    }
+
     AbstractDungeon.player.masterDeck.clear();
 
     cardMap.forEach((cardName, count) -> {
+      cardName = cardName.toLowerCase();
       int upgradeCount = 0;
 
       String[] cardNameUpgradeSplit = cardName.split("\\+");
@@ -284,52 +342,27 @@ public class TestUtil {
         cardName = cardNameUpgradeSplit[0];
       }
 
-      AbstractCard c = CardLibrary.getCard(cardName);
-      AbstractCard cCpy3 = null;
+      if (cardName == "strike" || cardName == "defend") {
+        cardName = cardName + "_" + playerColorChar;
+      }
+
+      AbstractCard c = cardMapByName.getOrDefault(cardName.toLowerCase(), null);
       if (c == null) {
-        cardName = cardName.toLowerCase();
-        // for some cases the ID wont match the name of the card (like Recursion, which
-        // has the ID "Redo", or "Strike" with ID
-        // "Strike_R" for Ironclad), so check all cards by name
-        for (AbstractCard card : CardLibrary.getAllCards()) {
-          // basic strikes and defends have a color suffix, so remove it for the check
-          String name = card.name.replaceFirst("_(R|G|B|P)", "");
-          name = name.toLowerCase();
-          if (!name.equals(cardName)) {
-            continue;
-          }
-
-          // insert starter cards from the correct class
-          if (card.isStarterDefend() || card.isStarterStrike()) {
-            if (card.color != AbstractDungeon.player.getCardColor()) {
-              continue;
-            }
-          }
-
-          cCpy3 = card.makeCopy();
-          break;
-        }
-
-        if (cCpy3 == null) {
-          throw new RuntimeException("Card not found: " + cardName);
-        }
-      } else {
-        cCpy3 = c.makeCopy();
+        throw new RuntimeException("Card not found: " + cardName);
       }
 
-      
-      if (cardNameUpgradeSplit.length == 2) {
-        
-
-        for (int i = 0; i < upgradeCount; i++) {
-          cCpy3.upgrade();
-        }
-      }
+      CardHelper.obtain(c.cardID, c.rarity, c.color);
 
       for (int i = 0; i < count; i++) {
-        AbstractCard card = cCpy3.makeCopy();
+        AbstractCard cCpy = c.makeCopy();
+        for (int j = 0; j < upgradeCount; j++) {
+          cCpy.upgrade();
+        }
+        cCpy.displayUpgrades(); // updates metadata which affects the description
 
-        AbstractDungeon.player.masterDeck.addToTop(card);
+        cCpy.update();
+
+        AbstractDungeon.player.masterDeck.addToTop(cCpy);
       }
     });
   }
