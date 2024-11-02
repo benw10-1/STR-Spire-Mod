@@ -31,3 +31,8 @@ build
 .envrc
 sendToDevs
 steam_appid.txt
+
+bin
+preferences
+*.displayconfig
+.vscode
