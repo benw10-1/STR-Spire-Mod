@@ -14,7 +14,7 @@ public class Config {
     private static final String OAUTH_SETTINGS = "oauth";
     private static final String USER_SETTINGS = "user";
     public final Gson gson = new Gson();
-    private final SpireConfig config;
+    private static SpireConfig config;
 
     public Config() throws IOException {
         Properties strDefaultSettings = new Properties();
